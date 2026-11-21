@@ -1,0 +1,198 @@
+# Canonical workflow catalog (draft 0.2 — ADR 003 D13)
+# Adapters render these as skills (SKILL.md).
+
+version: "0.2.0"
+
+workflows:
+  - id: session-start
+    name: session-start
+    title: Start Session
+    status: ready
+    description: Load organization and project state, identify active work, decide next action.
+    phase: continuity
+    invocation: explicit-or-auto
+    inputs: [apdt/organization, apdt/product/overview.md, apdt/execution/current-status.md, latest handoff]
+    outputs: [confirmed next action, optional status update]
+    steps:
+      - Read apdt/execution/continuity.md
+      - Read AGENTS.md / organization instructions
+      - Read product overview and current status
+      - Read latest session handoff if present
+      - List active work and blockers if those files exist
+      - Consult apdt/engineering/technical-decisions/ when decisions exist
+      - Assume previously delegated subagents are NOT still running; verify via files
+      - State the next appropriate action and owner
+
+  - id: session-handoff
+    name: session-handoff
+    title: End or Pause Session
+    status: ready
+    description: Persist task status, discoveries, blockers, and next recommended action.
+    phase: continuity
+    invocation: explicit
+    inputs: [work performed this session]
+    outputs: [apdt/sessions/handoffs/*, updated current-status]
+    steps:
+      - Follow apdt/execution/continuity.md
+      - Update task statuses in current-status (and backlog if present)
+      - Record completed and remaining work
+      - Record important discoveries and failed approaches
+      - Update blockers if relevant
+      - Write handoff under apdt/sessions/handoffs/ with next recommended action
+      - Write decisions under apdt/engineering/technical-decisions/ only when a decision is made
+      - Do not assume subagents continue after session end
+
+  - id: plan-increment
+    name: plan-increment
+    title: Plan Increment
+    status: ready
+    description: Create an implementation plan with ownership and acceptance criteria.
+    phase: planning
+    ownerRole: engineering-lead
+    invocation: explicit
+    steps:
+      - Restate objective and acceptance criteria
+      - Identify owners and non-goals
+      - List implementation steps and test plan
+      - Record plan in execution docs or active-work note
+      - Confirm approval gates if autonomy requires it
+
+  - id: implement-change
+    name: implement-change
+    title: Implement Change
+    status: ready
+    description: Implement a scoped change with tests as required.
+    phase: implementation
+    ownerRole: engineer
+    invocation: explicit
+    steps:
+      - Read plan and acceptance criteria
+      - Implement the smallest change that satisfies criteria
+      - Add/update tests as required by plan
+      - Note deviations and risks in status/handoff materials
+
+  - id: verify-change
+    name: verify-change
+    title: Test and Verify
+    status: ready
+    description: Execute verification against acceptance criteria; record evidence.
+    phase: testing
+    ownerRole: qa-engineer
+    invocation: explicit
+    steps:
+      - Restate acceptance criteria
+      - Run relevant automated checks
+      - Perform targeted manual verification if needed
+      - Record pass/fail evidence under apdt/quality/verification/ when material
+      - File defects/blockers rather than silently accepting gaps
+
+  - id: review-change
+    name: review-change
+    title: Independent Review
+    status: ready
+    description: Review code/design quality without relying solely on implementer claims.
+    phase: review
+    ownerRole: code-reviewer
+    invocation: explicit
+    steps:
+      - Review diff against standards and acceptance criteria
+      - Label findings by severity
+      - Distinguish verified issues from suggestions
+      - Do not implement fixes unless explicitly asked
+
+  - id: evaluate-product
+    name: evaluate-product
+    title: Evaluate Product
+    status: ready
+    description: Independently evaluate product quality vs objectives; produce evidence-based report.
+    phase: evaluation
+    ownerRole: product-evaluator
+    invocation: explicit
+    steps:
+      - Restate product objectives
+      - Gather evidence from docs, UX, tests, and behavior
+      - Separate verified problems, risks, and suggestions
+      - Write evaluation under apdt/product/evaluations/
+      - Propose actionable improvements without implementing them
+      - Note that triage is incomplete until PM runs plan-improvements
+
+  - id: plan-improvements
+    name: plan-improvements
+    title: Plan Improvements
+    status: ready
+    description: Product Manager triages evaluation findings into prioritized backlog items.
+    phase: improvement
+    ownerRole: product-manager
+    invocation: explicit
+    steps:
+      - Read latest evaluation report
+      - Accept, defer, or reject each finding with rationale
+      - Create/update backlog items for accepted findings (record backlog ID, or n/a with rationale)
+      - "Append or update a ## Triage section in the evaluation file with Status: triaged"
+      - Update roadmap/status if priorities change
+      - Leave triage visible in the evaluation file
+
+  - id: discover-product
+    name: discover-product
+    title: Product Discovery
+    status: stub
+    description: Discover users, problems, and opportunities.
+    phase: discovery
+    ownerRole: product-manager
+    invocation: explicit
+
+  - id: define-product
+    name: define-product
+    title: Product Definition
+    status: stub
+    description: Establish vision, audience, objectives, and non-goals.
+    phase: product-definition
+    ownerRole: product-manager
+    invocation: explicit
+
+  - id: capture-requirements
+    name: capture-requirements
+    title: Capture Requirements
+    status: stub
+    description: Write requirements and acceptance criteria; update roadmap.
+    phase: requirements
+    ownerRole: product-manager
+    invocation: explicit
+
+  - id: design-architecture
+    name: design-architecture
+    title: Architecture and Design
+    status: stub
+    description: Produce or update architecture and technical decisions.
+    phase: architecture
+    ownerRole: engineering-lead
+    invocation: explicit
+
+  - id: release-readiness
+    name: release-readiness
+    title: Release Readiness
+    status: stub
+    description: Assess whether the product increment is ready to release.
+    phase: release
+    ownerRole: engineering-lead
+    invocation: explicit
+
+  - id: maintain-iterate
+    name: maintain-iterate
+    title: Maintenance Iteration
+    status: stub
+    description: Handle bugs, debt, and small improvements in a controlled loop.
+    phase: maintenance
+    ownerRole: engineering-lead
+    invocation: explicit
+
+# Only ready workflows are installed by default (ADR 003 D13)
+defaultInstall:
+  - session-start
+  - session-handoff
+  - plan-increment
+  - implement-change
+  - verify-change
+  - review-change
+  - evaluate-product
+  - plan-improvements

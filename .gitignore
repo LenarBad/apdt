@@ -1,0 +1,10 @@
+node_modules/
+dist/
+tests/.tmp/
+.apdt-backup/
+*.tgz
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example

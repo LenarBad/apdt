@@ -1,0 +1,65 @@
+{
+  "name": "apdt",
+  "version": "0.1.0",
+  "description": "Autonomous Product Development Team — workspace initializer for AI coding harnesses",
+  "license": "MIT",
+  "author": "Lenar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LenarBad/apdt.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LenarBad/apdt/issues"
+  },
+  "homepage": "https://github.com/LenarBad/apdt#readme",
+  "keywords": [
+    "apdt",
+    "cli",
+    "agents",
+    "cursor",
+    "claude-code",
+    "codex",
+    "ai",
+    "workspace"
+  ],
+  "type": "module",
+  "bin": {
+    "apdt": "dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "apdt": "tsx src/cli.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "citty": "^0.1.6",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.8"
+  }
+}

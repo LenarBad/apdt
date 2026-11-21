@@ -1,0 +1,43 @@
+# Which knowledge files to create by project maturity (draft 0.2 — ADR 003)
+# Principle: create only what is useful — no empty spam.
+
+version: "0.2.0"
+
+# Phase 2 implements greenfield (+ early uses same allowlist unless noted).
+sets:
+  greenfield:
+    description: Empty or near-empty repository (ADR 003 D12)
+    files:
+      - apdt/organization/team.yaml
+      - apdt/organization/responsibilities.yaml
+      - apdt/organization/autonomy.yaml
+      - apdt/product/overview.md
+      - apdt/execution/current-status.md
+      - apdt/sessions/handoffs/.gitkeep
+      - apdt/.apdt-manifest.yaml
+      - apdt/ONBOARDING.md
+
+  early:
+    description: Early implementation — same core as greenfield plus thin requirements stub when user provides product name/goal
+    extends: greenfield
+    additional: []
+    # Optional (only if non-empty content available at init time):
+    # - apdt/product/requirements/initial.md
+    # - apdt/engineering/architecture/architecture.md
+
+  intermediate:
+    description: Working app — add structure only when templates have content
+    extends: early
+    additional:
+      - apdt/product/roadmap.md
+      - apdt/execution/backlog.md
+      - apdt/engineering/architecture/architecture.md
+      - apdt/quality/test-strategy.md
+
+  production:
+    description: Mature production application
+    extends: intermediate
+    additional:
+      - apdt/engineering/technical-debt.md
+      - apdt/quality/release-readiness.md
+      - apdt/organization/policies/README.md
