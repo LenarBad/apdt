@@ -8,8 +8,7 @@ APDT installs shared project knowledge, organization config, workflows/skills, a
 
 ```bash
 npm install -g @lenarbad/apdt
-# or one-shot:
-npx @lenarbad/apdt init --yes /path/to/project
+apdt init --yes /path/to/project
 ```
 
 Requires Node.js 20+.
