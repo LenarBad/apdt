@@ -1,6 +1,5 @@
 import { mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   isEvaluationTriaged,
@@ -21,8 +20,6 @@ import { loadManifest } from "../src/inventory/manifest.js";
 import { loadOrganization } from "../src/organization/load.js";
 import { planSharedSkills } from "../src/workflows/skills.js";
 import { workspaceTempDir } from "./helpers.js";
-
-const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
 function writeInvalidOrg(root: string): void {
   const org = join(root, "apdt/organization");
@@ -366,8 +363,15 @@ describe("continuity readback", () => {
   });
 
   it("installed session skills match the catalog and manifest hashes", () => {
+    const root = workspaceTempDir();
+    initProject(root, {
+      yes: true,
+      harnesses: ["cursor"],
+      preset: "minimal",
+      autonomy: "supervised",
+    });
     const skills = planSharedSkills();
-    const manifest = loadManifest(repoRoot);
+    const manifest = loadManifest(root);
     expect(manifest).toBeTruthy();
     for (const name of ["session-start", "session-handoff"]) {
       const planned = skills.find(
@@ -375,7 +379,7 @@ describe("continuity readback", () => {
       );
       expect(planned?.content).toContain("apdt/execution/continuity.md");
       expect(planned?.content).toContain("apdt/engineering/technical-decisions/");
-      const installed = readFileSync(join(repoRoot, planned!.path), "utf8");
+      const installed = readFileSync(join(root, planned!.path), "utf8");
       expect(installed).toBe(planned?.content);
       const entry = manifest!.files.find((file) => file.path === planned!.path);
       expect(entry?.hash).toBe(contentHash(installed));
@@ -383,8 +387,15 @@ describe("continuity readback", () => {
   });
 
   it("evaluate-product and plan-improvements skills match catalog closed-loop steps", () => {
+    const root = workspaceTempDir();
+    initProject(root, {
+      yes: true,
+      harnesses: ["cursor"],
+      preset: "minimal",
+      autonomy: "supervised",
+    });
     const skills = planSharedSkills();
-    const manifest = loadManifest(repoRoot);
+    const manifest = loadManifest(root);
     expect(manifest).toBeTruthy();
 
     const evaluate = skills.find(
@@ -409,7 +420,7 @@ describe("continuity readback", () => {
     );
 
     for (const planned of [evaluate, planImp]) {
-      const installed = readFileSync(join(repoRoot, planned!.path), "utf8");
+      const installed = readFileSync(join(root, planned!.path), "utf8");
       expect(installed).toBe(planned?.content);
       const entry = manifest!.files.find((file) => file.path === planned!.path);
       expect(entry?.hash).toBe(contentHash(installed));
