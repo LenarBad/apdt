@@ -2,7 +2,7 @@
 
 ## 0.1.0 — 2026-11-21
 
-Initial public release.
+Initial public release as `@lenarbad/apdt` (unscoped `apdt` blocked by npm name similarity rules). CLI binary remains `apdt`.
 
 - CLI: `analyze`, `init`, `update`, `export`, `doctor`, `status`, `team`
 - Harness adapters: Cursor, Claude Code, Codex
