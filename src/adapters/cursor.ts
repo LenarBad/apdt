@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { HarnessAdapter } from "./types.js";
 import type { CapabilityReport, DoctorFinding, PlannedFile } from "../schemas/plan.js";
 import type { OrganizationConfig } from "../schemas/organization.js";
+import { profileContractSection } from "./profile-contract.js";
 
 function agentMarkdown(org: OrganizationConfig, agentId: string): string {
   const agent = org.team.agents.find((a) => a.id === agentId);
@@ -28,7 +29,7 @@ ${agent.role}
 
 ${agent.responsibilities.map((r) => `- ${r}`).join("\n")}
 
-## Collaboration
+${profileContractSection(agent.profileIds)}## Collaboration
 
 - Product owner agent: \`${org.team.coordination.productOwnerAgentId}\`
 - Engineering lead agent: \`${org.team.coordination.engineeringLeadAgentId}\`

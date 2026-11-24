@@ -95,10 +95,12 @@ workflows:
     ownerRole: code-reviewer
     invocation: explicit
     steps:
-      - Review diff against standards and acceptance criteria
-      - Label findings by severity
-      - Distinguish verified issues from suggestions
-      - Do not implement fixes unless explicitly asked
+      - Delegate to the readonly agent that owns code-review in apdt/organization/responsibilities.yaml. Do not review in the implementer's context.
+      - "Pass that agent the acceptance criteria and a diff. Prefer git diff. When the repo is not git, pass the changed paths and say there is no diff."
+      - "Point that agent at project checks under apdt/quality/ when those files exist. Do not copy project checks into generated agent files."
+      - "The delegated agent reviews the diff against standards and acceptance criteria, labels findings by severity, and marks each finding verified or assumption."
+      - "The delegated agent writes apdt/quality/reviews/<date>-<slug>-<agent>.md"
+      - "Return a 2-3 line summary and the review path. Do not implement fixes unless explicitly asked."
 
   - id: evaluate-product
     name: evaluate-product
@@ -109,12 +111,16 @@ workflows:
     ownerRole: product-evaluator
     invocation: explicit
     steps:
+      - Delegate to the readonly agent that owns independent-evaluation in apdt/organization/responsibilities.yaml. Do not evaluate in the implementer's context.
+      - "Pass that agent the product objectives, acceptance criteria when an increment is in scope, and a diff when one exists. Prefer git diff. When the repo is not git, pass the changed paths and say there is no diff."
+      - "Point that agent at project checks under apdt/quality/ when those files exist. Do not copy project checks into generated agent files."
       - Restate product objectives
       - Gather evidence from docs, UX, tests, and behavior
       - Separate verified problems, risks, and suggestions
       - Write evaluation under apdt/product/evaluations/
       - Propose actionable improvements without implementing them
       - Note that triage is incomplete until PM runs plan-improvements
+      - "Return a 2-3 line summary and the evaluation path."
 
   - id: plan-improvements
     name: plan-improvements

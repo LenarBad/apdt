@@ -8,3 +8,4 @@ tests/.tmp/
 .env
 .env.*
 !.env.example
+secrets/

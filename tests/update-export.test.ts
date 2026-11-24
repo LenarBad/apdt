@@ -60,6 +60,97 @@ describe("apdt update", () => {
     expect(managedHashes(root)).toEqual(hashes);
   });
 
+  it("rewrites clean managed files when the template changes and leaves the rest", () => {
+    const root = tempDir();
+    initProject(root, {
+      yes: true,
+      createdAt: "2026-11-21T00:00:00.000Z",
+      projectName: "upgrade",
+      harnesses: ["cursor"],
+      preset: "minimal",
+    });
+
+    const skillRel = ".agents/skills/review-change/SKILL.md";
+    const oldSkill = "# previous review skill\n";
+    writeFileSync(join(root, skillRel), oldSkill);
+
+    const overviewRel = "apdt/product/overview.md";
+    const customOverview = "# customized product\n";
+    writeFileSync(join(root, overviewRel), customOverview);
+
+    const statusRel = "apdt/execution/current-status.md";
+    const pinnedStatus = "# pinned status\n";
+    writeFileSync(join(root, statusRel), pinnedStatus);
+
+    const manifest = loadManifest(root)!;
+    const skillEntry = manifest.files.find((file) => file.path === skillRel);
+    const statusEntry = manifest.files.find((file) => file.path === statusRel);
+    expect(skillEntry).toBeTruthy();
+    expect(statusEntry).toBeTruthy();
+    skillEntry!.hash = contentHash(oldSkill);
+    statusEntry!.hash = contentHash(pinnedStatus);
+    statusEntry!.pinContent = true;
+    writeManifest(root, manifest);
+
+    mkdirSync(join(root, "notes"));
+    const userNote = join(root, "notes/keep.txt");
+    writeFileSync(userNote, "leave this\n");
+
+    const teamRel = "apdt/organization/team.yaml";
+    const agentsRel = "AGENTS.md";
+    const teamBefore = readFileSync(join(root, teamRel), "utf8");
+    const agentsBefore = readFileSync(join(root, agentsRel), "utf8");
+    const before = managedHashes(root);
+
+    const result = updateProject(root);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(result.applyResult.written).toEqual([skillRel]);
+    const upgradedSkill = readFileSync(join(root, skillRel), "utf8");
+    expect(upgradedSkill).not.toBe(oldSkill);
+    expect(upgradedSkill).toContain("owns code-review");
+
+    expect(readFileSync(join(root, overviewRel), "utf8")).toBe(customOverview);
+    expect(
+      result.applyResult.skipped.some(
+        (skip) => skip.path === overviewRel && skip.code === "DIRTY_SKIPPED",
+      ),
+    ).toBe(true);
+
+    expect(readFileSync(join(root, statusRel), "utf8")).toBe(pinnedStatus);
+    expect(
+      result.applyResult.skipped.some(
+        (skip) => skip.path === statusRel && skip.code === "PINNED_CONTENT",
+      ),
+    ).toBe(true);
+
+    expect(readFileSync(userNote, "utf8")).toBe("leave this\n");
+    expect(readFileSync(join(root, teamRel), "utf8")).toBe(teamBefore);
+    expect(readFileSync(join(root, agentsRel), "utf8")).toBe(agentsBefore);
+    expect(result.applyResult.written).not.toContain(teamRel);
+    expect(result.applyResult.written).not.toContain(agentsRel);
+    expect(result.applyResult.removed).toEqual([]);
+
+    const after = managedHashes(root);
+    expect(after[skillRel]).toBe(contentHash(upgradedSkill));
+    expect(after[skillRel]).not.toBe(before[skillRel]);
+    for (const [path, hash] of Object.entries(before)) {
+      if (path === skillRel) continue;
+      expect(after[path]).toBe(hash);
+    }
+    const stored = loadManifest(root)!;
+    expect(stored.files.find((file) => file.path === skillRel)?.hash).toBe(
+      contentHash(upgradedSkill),
+    );
+    expect(stored.files.find((file) => file.path === overviewRel)?.hash).not.toBe(
+      contentHash(customOverview),
+    );
+    expect(stored.files.find((file) => file.path === statusRel)?.pinContent).toBe(
+      true,
+    );
+  });
+
   it("skips dirty managed files without --force", () => {
     const root = tempDir();
     initProject(root, {

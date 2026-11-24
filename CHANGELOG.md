@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.2 — 2026-11-24
+
+Specialist ownership and a review contract for generated agents. Template schema stays `0.2.0`. An existing install keeps its team until `apdt update --recompose`.
+
+- Emitted specialists own `backend-implementation`, `frontend-implementation`, and `security-review`. When `reviewer` is emitted, that agent owns `code-review`. `minimal` still leaves `code-review` with `qa`.
+- `review-change` delegates to the readonly `code-review` owner with acceptance criteria and a diff, writes `apdt/quality/reviews/…`, and returns a short summary. `evaluate-product` delegates to the readonly `independent-evaluation` owner. Evaluations stay under `apdt/product/evaluations/`.
+- Cursor, Claude Code, and Codex agent bodies include the profile inputs and outputs.
+- `apdt update` rewrites a clean managed file when its template changed, and leaves edited, pinned, unchanged, and unmanaged files alone.
+
 ## 0.1.1 — 2026-11-21
 
 First installable registry release. `0.1.0` was accepted by npm into a non-visible staged state (E409 on republish); bumped to clear the block.

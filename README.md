@@ -45,6 +45,19 @@ apdt team [path]
 
 **Brownfield:** existing `apdt/**` files are adopted into the manifest without overwrite (`pinContent`). Invalid organization YAML is repaired with backup. Harness-file collisions outside `apdt/` are skipped. `--recompose` rebuilds the team from the preset.
 
+## Upgrade an existing project
+
+Install the newer CLI, then refresh the project:
+
+```bash
+npm install -g @lenarbad/apdt
+apdt update .
+```
+
+`apdt update` keeps the installed team. It rewrites a managed file only when the new template differs and the file still matches the last install. Files you edited, `pinContent` files, and anything outside the manifest stay as they are. `--force` overwrites edited managed files after a backup.
+
+Team and ownership changes ship in the composer, not in the template text. Those land only with `apdt update --recompose`, which rebuilds the team from the installed preset. Edited and pinned files are still left alone.
+
 ## What `init` installs
 
 - Shared knowledge under `apdt/`

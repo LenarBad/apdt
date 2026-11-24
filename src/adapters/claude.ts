@@ -4,6 +4,7 @@ import type { HarnessAdapter } from "./types.js";
 import type { CapabilityReport, DoctorFinding, PlannedFile } from "../schemas/plan.js";
 import type { AutonomyLevel, OrganizationConfig } from "../schemas/organization.js";
 import { planSharedSkills } from "../workflows/skills.js";
+import { profileContractSection } from "./profile-contract.js";
 
 const CLAUDE_MD_LINE_BUDGET = 200;
 
@@ -48,7 +49,7 @@ ${agent.role}
 
 ${agent.responsibilities.map((r) => `- ${r}`).join("\n")}
 
-## Collaboration
+${profileContractSection(agent.profileIds)}## Collaboration
 
 - Product owner agent: \`${org.team.coordination.productOwnerAgentId}\`
 - Engineering lead agent: \`${org.team.coordination.engineeringLeadAgentId}\`

@@ -10,6 +10,9 @@ export const ResponsibilityIdSchema = z.enum([
   "verification",
   "code-review",
   "independent-evaluation",
+  "backend-implementation",
+  "frontend-implementation",
+  "security-review",
 ]);
 export type ResponsibilityId = z.infer<typeof ResponsibilityIdSchema>;
 

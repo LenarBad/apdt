@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { HarnessAdapter } from "./types.js";
 import type { CapabilityReport, DoctorFinding, PlannedFile } from "../schemas/plan.js";
 import type { OrganizationConfig } from "../schemas/organization.js";
+import { profileContractSection } from "./profile-contract.js";
 
 /** Codex default combined project-doc budget (`project_doc_max_bytes`). */
 export const CODEX_AGENTS_MD_BUDGET_BYTES = 32 * 1024;
@@ -57,7 +58,7 @@ ${agent.role}
 
 ${agent.responsibilities.map((r) => `- ${r}`).join("\n")}
 
-## Collaboration
+${profileContractSection(agent.profileIds)}## Collaboration
 
 - Product owner agent: \`${org.team.coordination.productOwnerAgentId}\`
 - Engineering lead agent: \`${org.team.coordination.engineeringLeadAgentId}\`

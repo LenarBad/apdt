@@ -99,6 +99,7 @@ export function initProject(repoRoot: string, options: InitOptions = {}) {
     force: options.force,
     // Unique backup stamps even when createdAt is frozen for determinism
     now: new Date().toISOString(),
+    createdAt: plan.meta.createdAt,
     adoptApdt: true,
     repairOrg,
   });

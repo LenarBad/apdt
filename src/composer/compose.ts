@@ -69,14 +69,33 @@ const RESP_DESCRIPTIONS: Record<ResponsibilityId, string> = {
   verification: "Test strategy and verification evidence",
   "code-review": "Independent review of changes",
   "independent-evaluation": "Independently evaluate product vs objectives",
+  "backend-implementation": "Implement server, API, data, and integration logic",
+  "frontend-implementation": "Implement user interfaces and client-side behavior",
+  "security-review": "Identify security and abuse risks in design and changes",
 };
+
+/** Always present. Specialist ids are added only when that agent is emitted. */
+const CORE_RESPONSIBILITIES: ResponsibilityId[] = [
+  "product-vision",
+  "requirements",
+  "prioritization",
+  "architecture",
+  "implementation",
+  "verification",
+  "code-review",
+  "independent-evaluation",
+];
 
 function loadProfiles(): ProfilesFile {
   const raw = readFileSync(join(templatesRoot(), "agents/profiles.yaml"), "utf8");
   return YAML.parse(raw) as ProfilesFile;
 }
 
-/** Draft profile IDs mapped onto the Phase 2 catalog so opt-in presets stay usable. */
+/**
+ * Draft profile IDs mapped onto the core catalog when the specialist is merged
+ * into an agent that already owns the target. Emitted specialists keep their
+ * own id (ADR 007).
+ */
 const RESPONSIBILITY_ALIASES: Record<string, ResponsibilityId> = {
   "backend-implementation": "implementation",
   "frontend-implementation": "implementation",
@@ -89,10 +108,13 @@ const RESPONSIBILITY_ALIASES: Record<string, ResponsibilityId> = {
   "market-research": "requirements",
 };
 
-function filterCatalogResponsibilities(ids: string[]): ResponsibilityId[] {
+function mapResponsibilities(ids: string[]): ResponsibilityId[] {
+  const native = new Set(ids.filter((id) => !RESPONSIBILITY_ALIASES[id]));
   const out: ResponsibilityId[] = [];
   for (const id of ids) {
-    const mapped = RESPONSIBILITY_ALIASES[id] ?? id;
+    const alias = RESPONSIBILITY_ALIASES[id];
+    const keepDistinct = alias !== undefined && !native.has(alias);
+    const mapped = keepDistinct ? id : (alias ?? id);
     const parsed = ResponsibilityIdSchema.safeParse(mapped);
     if (parsed.success && !out.includes(parsed.data)) out.push(parsed.data);
   }
@@ -109,7 +131,7 @@ function mergeProfiles(profiles: RawProfile[]): {
   profileIds: string[];
 } {
   const primary = profiles[0]!;
-  const responsibilities = filterCatalogResponsibilities(
+  const responsibilities = mapResponsibilities(
     profiles.flatMap((p) => p.responsibilities),
   );
   const readonly = profiles.some((p) => p.tools?.readonly === true);
@@ -193,14 +215,10 @@ export function composeTeam(
   };
 
   const required: ResponsibilityId[] = [
-    "product-vision",
-    "requirements",
-    "prioritization",
-    "architecture",
-    "implementation",
-    "verification",
-    "code-review",
-    "independent-evaluation",
+    ...CORE_RESPONSIBILITIES,
+    ...(["backend-implementation", "frontend-implementation", "security-review"] as const).filter(
+      (id) => agents.some((agent) => agent.responsibilities.includes(id)),
+    ),
   ];
 
   // Ensure agents carry required responsibilities via assignment even if merge dropped some
@@ -216,8 +234,14 @@ export function composeTeam(
       }
     }
     if (agent.id === "qa") {
-      for (const r of ["verification", "code-review"] as ResponsibilityId[]) {
-        if (!agent.responsibilities.includes(r)) agent.responsibilities.push(r);
+      if (!agent.responsibilities.includes("verification")) {
+        agent.responsibilities.push("verification");
+      }
+      const reviewerOwnsCodeReview = agents.some(
+        (other) => other.id !== "qa" && other.responsibilities.includes("code-review"),
+      );
+      if (!reviewerOwnsCodeReview && !agent.responsibilities.includes("code-review")) {
+        agent.responsibilities.push("code-review");
       }
     }
     if (agent.id === "evaluator") {

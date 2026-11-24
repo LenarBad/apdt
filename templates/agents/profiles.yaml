@@ -1,7 +1,8 @@
 # Reusable APDT agent profiles (draft 0.2)
 # Profiles are responsibilities packaged for recruitment. Team composer selects/merges these.
-# Phase 2: only responsibility IDs from ADR 003 D5 catalog are valid on installed agents.
-# Specialist profiles below may still list draft IDs — composer must map/ignore until catalog expands.
+# Core IDs are the ADR 003 D5 catalog. ADR 007 keeps backend-implementation,
+# frontend-implementation, and security-review when that specialist is its own agent.
+# Other draft IDs still alias onto the core catalog when merged into a generalist.
 
 version: "0.2.0"
 

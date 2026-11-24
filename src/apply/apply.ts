@@ -26,6 +26,8 @@ export type ApplyResult = {
 export type ApplyOptions = {
   force?: boolean;
   now?: string;
+  /** Install timestamp for new manifests. Backup stamps still use `now`. */
+  createdAt?: string;
   /**
    * Preserve existing `apdt/**` files on unmanaged collision and adopt them
    * into the inventory (disk bytes + hash). Default true.
@@ -154,7 +156,10 @@ export function applyPlan(
     removed.push(orphan.path);
   }
 
-  const manifest = buildManifestEntries(writes, previous, now, { omitPaths });
+  const manifest = buildManifestEntries(writes, previous, now, {
+    omitPaths,
+    createdAt: options.createdAt,
+  });
 
   for (const entry of adopted) {
     if (!manifest.files.some((e) => e.path === entry.path)) {

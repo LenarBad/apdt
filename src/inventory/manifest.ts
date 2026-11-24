@@ -123,7 +123,7 @@ export function buildManifestEntries(
   writes: PlannedFile[],
   previous: Manifest | null,
   now: string,
-  options: { omitPaths?: ReadonlySet<string> } = {},
+  options: { omitPaths?: ReadonlySet<string>; createdAt?: string } = {},
 ): Manifest {
   const prevByPath = new Map(previous?.files.map((f) => [f.path, f]) ?? []);
   const omitPaths = options.omitPaths ?? new Set<string>();
@@ -148,7 +148,7 @@ export function buildManifestEntries(
   return {
     version: 1,
     apdtVersion: APDT_VERSION,
-    createdAt: previous?.createdAt ?? now,
+    createdAt: previous?.createdAt ?? options.createdAt ?? now,
     updatedAt: now,
     templateVersion: TEMPLATE_VERSION,
     files,
