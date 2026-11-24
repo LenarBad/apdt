@@ -23,12 +23,18 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      # Trusted Publishing (OIDC) for LenarBad/apdt / publish.yml.
-      # npm 11.5.1+ is required. setup-node writes an empty _authToken, which
-      # makes npm skip OIDC and fail with ENEEDAUTH. Remove that line.
+      # npm 11.5.1+ is required for Trusted Publishing.
+      # This repo's OIDC subject is immutable (repo:LenarBad@id/apdt@id). npm
+      # rejects that form (npm/cli#9969), so a NODE_AUTH_TOKEN secret publishes
+      # until the exchange accepts it. An empty token must be removed or npm
+      # skips OIDC and fails with ENEEDAUTH.
       - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
         run: |
           npm install -g npm@11
-          npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
-          sed -i '/_authToken/d' "$npmrc"
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            npmrc="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+            sed -i '/_authToken/d' "$npmrc"
+          fi
           npm publish --access public
