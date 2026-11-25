@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 — 2026-11-25
+
+Optional Claude Code usage guard. Template schema stays `0.2.0`. Off by default.
+
+- Opt in with `harnesses.claudeCode.usageGuard.enabled` in `apdt/organization/team.yaml`, then `apdt update`.
+- When enabled, APDT installs hooks that pause work and block Agent/Task/Workflow spawning around 90% plan usage, then resume after reset. Writes managed `.claude/settings.json` only for that feature (ADR 008).
+
 ## 0.1.2 — 2026-11-24
 
 Specialist ownership and a review contract for generated agents. Template schema stays `0.2.0`. An existing install keeps its team until `apdt update --recompose`.

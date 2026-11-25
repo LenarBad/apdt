@@ -41,6 +41,19 @@ export const ComposedAgentSchema = z.object({
 });
 export type ComposedAgent = z.infer<typeof ComposedAgentSchema>;
 
+export const ClaudeUsageGuardSchema = z.object({
+  enabled: z.boolean().default(false),
+  pauseAtPercent: z.number().min(1).max(100).default(90),
+});
+export type ClaudeUsageGuard = z.infer<typeof ClaudeUsageGuardSchema>;
+
+export const ClaudeCodeHarnessOptionsSchema = z.object({
+  usageGuard: ClaudeUsageGuardSchema.optional(),
+});
+export type ClaudeCodeHarnessOptions = z.infer<
+  typeof ClaudeCodeHarnessOptionsSchema
+>;
+
 export const OrganizationConfigSchema = z.object({
   version: z.string(),
   projectName: z.string(),
@@ -67,7 +80,18 @@ export const OrganizationConfigSchema = z.object({
   harnesses: z.object({
     primary: HarnessIdSchema,
     enabled: z.array(HarnessIdSchema),
+    claudeCode: ClaudeCodeHarnessOptionsSchema.optional(),
   }),
   preset: PresetSchema,
 });
 export type OrganizationConfig = z.infer<typeof OrganizationConfigSchema>;
+
+/** True when Claude Code usage guard is opted in. */
+export function isClaudeUsageGuardEnabled(org: OrganizationConfig): boolean {
+  return org.harnesses.claudeCode?.usageGuard?.enabled === true;
+}
+
+/** Pause threshold percent (default 90). */
+export function claudeUsageGuardPauseAt(org: OrganizationConfig): number {
+  return org.harnesses.claudeCode?.usageGuard?.pauseAtPercent ?? 90;
+}

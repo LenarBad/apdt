@@ -3,6 +3,12 @@ import { join } from "node:path";
 import type { HarnessAdapter } from "./types.js";
 import type { CapabilityReport, DoctorFinding, PlannedFile } from "../schemas/plan.js";
 import type { AutonomyLevel, OrganizationConfig } from "../schemas/organization.js";
+import {
+  claudeUsageGuardPauseAt,
+  isClaudeUsageGuardEnabled,
+} from "../schemas/organization.js";
+import { planUsageGuardFiles } from "../claude-usage-guard/emit.js";
+import { loadOrganization } from "../organization/load.js";
 import { planSharedSkills } from "../workflows/skills.js";
 import { profileContractSection } from "./profile-contract.js";
 
@@ -68,6 +74,14 @@ Differentiate verified facts from assumptions. Keep changes scoped to acceptance
 `;
 }
 
+function settingsPolicyLine(org: OrganizationConfig): string {
+  if (isClaudeUsageGuardEnabled(org)) {
+    const pct = claudeUsageGuardPauseAt(org);
+    return `Optional usage guard is **on** (pause at ${pct}%). APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008).`;
+  }
+  return `APDT does not write \`.claude/settings.json\` unless \`harnesses.claudeCode.usageGuard.enabled\` is true (ADR 008).`;
+}
+
 function claudeMd(org: OrganizationConfig): string {
   return `# Claude Code
 
@@ -86,7 +100,7 @@ ${org.team.agents.map((a) => `- **${a.id}** — ${a.displayName}`).join("\n")}
 
 Agents: \`.claude/agents/\`. Skills: \`.claude/skills/\` (mirrors of \`.agents/skills/\`).
 
-Autonomy is **${org.autonomy.level}**. Readonly and conservative agents use \`permissionMode: plan\`. APDT does not write \`.claude/settings.json\`.
+Autonomy is **${org.autonomy.level}**. Readonly and conservative agents use \`permissionMode: plan\`. ${settingsPolicyLine(org)}
 `;
 }
 
@@ -96,6 +110,14 @@ function mirrorSkills(): PlannedFile[] {
     path: file.path.replace(/^\.agents\/skills\//, ".claude/skills/"),
     templateId: file.templateId.replace(/^workflow\//, "claude/skill/"),
   }));
+}
+
+function settingsHasUsageGuardHooks(text: string): boolean {
+  return (
+    text.includes("apdt-usage-guard") &&
+    text.includes("PreToolUse") &&
+    text.includes("autoContinueAtUsageLimit")
+  );
 }
 
 export const claudeCodeAdapter: HarnessAdapter = {
@@ -133,7 +155,7 @@ export const claudeCodeAdapter: HarnessAdapter = {
       {
         capability: "approvals",
         support: "partial",
-        notes: "APDT does not write .claude/settings.json",
+        notes: "APDT writes .claude/settings.json only when usageGuard is enabled (hooks + autoContinueAtUsageLimit)",
       },
       {
         capability: "worktree-isolation",
@@ -172,6 +194,7 @@ export const claudeCodeAdapter: HarnessAdapter = {
       });
     }
     files.push(...mirrorSkills());
+    files.push(...planUsageGuardFiles(ctx.organization));
     return files;
   },
 
@@ -217,6 +240,50 @@ export const claudeCodeAdapter: HarnessAdapter = {
         });
       }
     }
+
+    const loaded = loadOrganization(repoRoot);
+    if (loaded.ok && isClaudeUsageGuardEnabled(loaded.organization)) {
+      const guardPath = ".claude/hooks/apdt-usage-guard/guard.mjs";
+      const configPath = ".claude/hooks/apdt-usage-guard/config.json";
+      const settingsPath = ".claude/settings.json";
+      if (!existsSync(join(repoRoot, guardPath))) {
+        findings.push({
+          severity: "error",
+          code: "MISSING_USAGE_GUARD",
+          message: "usageGuard enabled but hook script is missing",
+          path: guardPath,
+        });
+      }
+      if (!existsSync(join(repoRoot, configPath))) {
+        findings.push({
+          severity: "error",
+          code: "MISSING_USAGE_GUARD",
+          message: "usageGuard enabled but hook config is missing",
+          path: configPath,
+        });
+      }
+      if (!existsSync(join(repoRoot, settingsPath))) {
+        findings.push({
+          severity: "warning",
+          code: "USAGE_GUARD_SETTINGS_MISSING",
+          message:
+            "usageGuard enabled but .claude/settings.json is missing (unmanaged collision or not applied). Merge APDT hooks manually or re-run with --force.",
+          path: settingsPath,
+        });
+      } else {
+        const settingsText = readFileSync(join(repoRoot, settingsPath), "utf8");
+        if (!settingsHasUsageGuardHooks(settingsText)) {
+          findings.push({
+            severity: "warning",
+            code: "USAGE_GUARD_SETTINGS_INCOMPLETE",
+            message:
+              ".claude/settings.json exists but does not include APDT usage-guard hooks. Merge hooks from the adapter plan or re-run with --force.",
+            path: settingsPath,
+          });
+        }
+      }
+    }
+
     return findings;
   },
 };

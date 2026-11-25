@@ -1,6 +1,10 @@
 import YAML from "yaml";
 import type { HarnessId, ProjectAnalysis } from "../schemas/analysis.js";
 import type { OrganizationConfig } from "../schemas/organization.js";
+import {
+  claudeUsageGuardPauseAt,
+  isClaudeUsageGuardEnabled,
+} from "../schemas/organization.js";
 import type { PlannedFile } from "../schemas/plan.js";
 import { TEMPLATE_VERSION } from "../version.js";
 
@@ -22,9 +26,15 @@ function capabilityDigest(org: OrganizationConfig): string {
     );
   }
   if (org.harnesses.enabled.includes("claude-code")) {
-    lines.push(
-      "- Claude Code: per-agent `tools` and `permissionMode` are **Native**. Skills are mirrored under `.claude/skills/`. APDT does not write `.claude/settings.json`.",
-    );
+    if (isClaudeUsageGuardEnabled(org)) {
+      lines.push(
+        `- Claude Code: per-agent \`tools\` and \`permissionMode\` are **Native**. Skills are mirrored under \`.claude/skills/\`. Optional usage guard is **on** (pause at ${claudeUsageGuardPauseAt(org)}%); APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008).`,
+      );
+    } else {
+      lines.push(
+        "- Claude Code: per-agent `tools` and `permissionMode` are **Native**. Skills are mirrored under `.claude/skills/`. APDT does not write `.claude/settings.json` unless `harnesses.claudeCode.usageGuard.enabled` is true (ADR 008).",
+      );
+    }
   }
   if (org.harnesses.enabled.includes("codex")) {
     lines.push(

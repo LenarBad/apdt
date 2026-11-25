@@ -19,6 +19,9 @@ export function applyOrgOverrides(
       harnesses: {
         primary: options.harnesses[0]!,
         enabled: options.harnesses,
+        ...(next.harnesses.claudeCode
+          ? { claudeCode: next.harnesses.claudeCode }
+          : {}),
       },
     };
   }
