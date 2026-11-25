@@ -28,11 +28,11 @@ function capabilityDigest(org: OrganizationConfig): string {
   if (org.harnesses.enabled.includes("claude-code")) {
     if (isClaudeUsageGuardEnabled(org)) {
       lines.push(
-        `- Claude Code: per-agent \`tools\` and \`permissionMode\` are **Native**. Skills are mirrored under \`.claude/skills/\`. Optional usage guard is **on** (pause at ${claudeUsageGuardPauseAt(org)}%); APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008).`,
+        `- Claude Code: per-agent \`tools\` and \`permissionMode\` are **Native**. Skills are mirrored under \`.claude/skills/\`. Usage guard is **on** by default (pause at ${claudeUsageGuardPauseAt(org)}%); APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008).`,
       );
     } else {
       lines.push(
-        "- Claude Code: per-agent `tools` and `permissionMode` are **Native**. Skills are mirrored under `.claude/skills/`. APDT does not write `.claude/settings.json` unless `harnesses.claudeCode.usageGuard.enabled` is true (ADR 008).",
+        "- Claude Code: per-agent `tools` and `permissionMode` are **Native**. Skills are mirrored under `.claude/skills/`. Usage guard is **off** (`harnesses.claudeCode.usageGuard.enabled: false`); APDT does not write `.claude/settings.json` (ADR 008).",
       );
     }
   }

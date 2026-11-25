@@ -14,7 +14,9 @@ export function isEligibleOrphan(entry: ManifestEntry): boolean {
     p.startsWith(".cursor/agents/") ||
     p.startsWith(".claude/agents/") ||
     p.startsWith(".codex/agents/") ||
-    p.startsWith(".claude/skills/")
+    p.startsWith(".claude/skills/") ||
+    p === ".claude/settings.json" ||
+    p.startsWith(".claude/hooks/apdt-usage-guard/")
   );
 }
 

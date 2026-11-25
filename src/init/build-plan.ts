@@ -5,6 +5,7 @@ import { planRootAgentsMd } from "../core/agents-md.js";
 import { planKnowledgeFiles } from "../knowledge/plan.js";
 import type { Maturity } from "../schemas/analysis.js";
 import type { OrganizationConfig } from "../schemas/organization.js";
+import { withDefaultClaudeUsageGuard } from "../schemas/organization.js";
 import type { WorkspacePlan } from "../schemas/plan.js";
 import { planSharedSkills } from "../workflows/skills.js";
 import { APDT_VERSION } from "../version.js";
@@ -32,7 +33,9 @@ export function buildWorkspacePlan(
     }
   }
 
-  const organization = options.organization ?? composeTeam(analysis, options);
+  const organization = withDefaultClaudeUsageGuard(
+    options.organization ?? composeTeam(analysis, options),
+  );
   const warnings = [...analysis.warnings];
 
   const files = [

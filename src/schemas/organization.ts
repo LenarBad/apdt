@@ -42,7 +42,8 @@ export const ComposedAgentSchema = z.object({
 export type ComposedAgent = z.infer<typeof ComposedAgentSchema>;
 
 export const ClaudeUsageGuardSchema = z.object({
-  enabled: z.boolean().default(false),
+  /** Default on when Claude Code is enabled; set false to disable. */
+  enabled: z.boolean().default(true),
   pauseAtPercent: z.number().min(1).max(100).default(90),
 });
 export type ClaudeUsageGuard = z.infer<typeof ClaudeUsageGuardSchema>;
@@ -86,12 +87,42 @@ export const OrganizationConfigSchema = z.object({
 });
 export type OrganizationConfig = z.infer<typeof OrganizationConfigSchema>;
 
-/** True when Claude Code usage guard is opted in. */
+/**
+ * Usage guard is on whenever Claude Code is enabled, unless
+ * `harnesses.claudeCode.usageGuard.enabled` is explicitly false.
+ */
 export function isClaudeUsageGuardEnabled(org: OrganizationConfig): boolean {
-  return org.harnesses.claudeCode?.usageGuard?.enabled === true;
+  if (!org.harnesses.enabled.includes("claude-code")) return false;
+  return org.harnesses.claudeCode?.usageGuard?.enabled !== false;
 }
 
 /** Pause threshold percent (default 90). */
 export function claudeUsageGuardPauseAt(org: OrganizationConfig): number {
   return org.harnesses.claudeCode?.usageGuard?.pauseAtPercent ?? 90;
+}
+
+/**
+ * Ensure team.yaml / plans show an explicit usageGuard block when Claude Code
+ * is enabled (default on). Preserves an explicit `enabled: false`.
+ */
+export function withDefaultClaudeUsageGuard(
+  org: OrganizationConfig,
+): OrganizationConfig {
+  if (!org.harnesses.enabled.includes("claude-code")) {
+    return org;
+  }
+  const existing = org.harnesses.claudeCode?.usageGuard;
+  const enabled = existing?.enabled !== false;
+  return {
+    ...org,
+    harnesses: {
+      ...org.harnesses,
+      claudeCode: {
+        usageGuard: {
+          enabled,
+          pauseAtPercent: existing?.pauseAtPercent ?? 90,
+        },
+      },
+    },
+  };
 }

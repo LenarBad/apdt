@@ -1,8 +1,16 @@
 # Changelog
 
+## 0.1.4 — 2026-11-25
+
+Claude Code usage guard is **on by default** when Claude Code is enabled. Template schema stays `0.2.0`.
+
+- `apdt init` / `apdt update` write `harnesses.claudeCode.usageGuard` and install the hooks automatically.
+- Set `harnesses.claudeCode.usageGuard.enabled: false` to disable.
+- Existing Claude Code installs pick this up on the next `apdt update` after upgrading the CLI.
+
 ## 0.1.3 — 2026-11-25
 
-Optional Claude Code usage guard. Template schema stays `0.2.0`. Off by default.
+Optional Claude Code usage guard. Template schema stays `0.2.0`. Off by default in this release.
 
 - Opt in with `harnesses.claudeCode.usageGuard.enabled` in `apdt/organization/team.yaml`, then `apdt update`.
 - When enabled, APDT installs hooks that pause work and block Agent/Task/Workflow spawning around 90% plan usage, then resume after reset. Writes managed `.claude/settings.json` only for that feature (ADR 008).

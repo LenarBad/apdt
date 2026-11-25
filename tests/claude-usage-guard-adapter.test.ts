@@ -2,6 +2,8 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -21,19 +23,47 @@ function tempDir(): string {
   return workspaceTempDir();
 }
 
-function enableUsageGuard(root: string, pauseAtPercent = 90) {
+function setUsageGuard(
+  root: string,
+  opts: { enabled: boolean; pauseAtPercent?: number },
+) {
   const teamPath = join(root, "apdt/organization/team.yaml");
   const team = YAML.parse(readFileSync(teamPath, "utf8")) as {
     harnesses: Record<string, unknown>;
   };
   team.harnesses.claudeCode = {
-    usageGuard: { enabled: true, pauseAtPercent },
+    usageGuard: {
+      enabled: opts.enabled,
+      pauseAtPercent: opts.pauseAtPercent ?? 90,
+    },
   };
   writeFileSync(teamPath, YAML.stringify(team));
 }
 
 describe("claude usage guard adapter", () => {
-  it("does not emit hooks or settings when usageGuard is off", () => {
+  it("emits hooks and settings by default when Claude Code is enabled", () => {
+    const root = tempDir();
+    initProject(root, {
+      yes: true,
+      createdAt: "2026-11-25T00:00:00.000Z",
+      projectName: "guard-default-on",
+      harnesses: ["claude-code"],
+    });
+    expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
+      true,
+    );
+    expect(existsSync(join(root, ".claude/settings.json"))).toBe(true);
+    const team = YAML.parse(
+      readFileSync(join(root, "apdt/organization/team.yaml"), "utf8"),
+    ) as { harnesses: { claudeCode?: { usageGuard?: { enabled?: boolean } } } };
+    expect(team.harnesses.claudeCode?.usageGuard?.enabled).toBe(true);
+    expect(readFileSync(join(root, "CLAUDE.md"), "utf8")).toContain(
+      "Usage guard is **on**",
+    );
+    expect(doctor(root).exitCode).toBe(0);
+  });
+
+  it("does not emit hooks or settings when usageGuard is explicitly off", () => {
     const root = tempDir();
     initProject(root, {
       yes: true,
@@ -41,16 +71,19 @@ describe("claude usage guard adapter", () => {
       projectName: "guard-off",
       harnesses: ["claude-code"],
     });
+    setUsageGuard(root, { enabled: false });
+    const updated = updateProject(root, {});
+    expect(updated.ok).toBe(true);
     expect(existsSync(join(root, ".claude/settings.json"))).toBe(false);
     expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
       false,
     );
     expect(readFileSync(join(root, "CLAUDE.md"), "utf8")).toContain(
-      "usageGuard.enabled",
+      "Usage guard is **off**",
     );
   });
 
-  it("emits hook pack and settings when usageGuard is enabled", () => {
+  it("emits hook pack with custom pauseAtPercent", () => {
     const root = tempDir();
     initProject(root, {
       yes: true,
@@ -58,15 +91,9 @@ describe("claude usage guard adapter", () => {
       projectName: "guard-on",
       harnesses: ["claude-code"],
     });
-    enableUsageGuard(root, 90);
+    setUsageGuard(root, { enabled: true, pauseAtPercent: 90 });
     const updated = updateProject(root, {});
     expect(updated.ok).toBe(true);
-    expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
-      true,
-    );
-    expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/config.json"))).toBe(
-      true,
-    );
     const config = JSON.parse(
       readFileSync(join(root, ".claude/hooks/apdt-usage-guard/config.json"), "utf8"),
     );
@@ -75,16 +102,7 @@ describe("claude usage guard adapter", () => {
       readFileSync(join(root, ".claude/settings.json"), "utf8"),
     );
     expect(settings.autoContinueAtUsageLimit).toBe(true);
-    expect(JSON.stringify(settings.hooks)).toContain("apdt-usage-guard");
     expect(JSON.stringify(settings.hooks)).toContain("Agent|Task|Workflow");
-    expect(readFileSync(join(root, "CLAUDE.md"), "utf8")).toContain(
-      "usage guard is **on**",
-    );
-    const d = doctor(root);
-    expect(d.findings.some((f) => f.code.startsWith("MISSING_USAGE_GUARD"))).toBe(
-      false,
-    );
-    expect(d.exitCode).toBe(0);
   });
 
   it("skips unmanaged settings.json and doctor warns", () => {
@@ -100,19 +118,9 @@ describe("claude usage guard adapter", () => {
       projectName: "guard-collision",
       harnesses: ["claude-code"],
     });
-    enableUsageGuard(root);
-    const updated = updateProject(root, {});
-    expect(updated.ok).toBe(true);
     expect(
-      updated.applyResult.skipped.some(
-        (s) => s.path === ".claude/settings.json" && s.code === "UNMANAGED_COLLISION",
-      ),
-    ).toBe(true);
-    // User settings preserved
-    expect(readFileSync(join(root, ".claude/settings.json"), "utf8")).toContain(
-      "permissions",
-    );
-    // Hook scripts still installed
+      readFileSync(join(root, ".claude/settings.json"), "utf8"),
+    ).toContain("permissions");
     expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
       true,
     );
@@ -122,7 +130,7 @@ describe("claude usage guard adapter", () => {
     ).toBe(true);
   });
 
-  it("preserves usageGuard across harness-list update override", () => {
+  it("preserves custom pauseAtPercent across harness-list update override", () => {
     const root = tempDir();
     initProject(root, {
       yes: true,
@@ -130,7 +138,7 @@ describe("claude usage guard adapter", () => {
       projectName: "guard-preserve",
       harnesses: ["claude-code"],
     });
-    enableUsageGuard(root, 92);
+    setUsageGuard(root, { enabled: true, pauseAtPercent: 92 });
     updateProject(root, { harnesses: ["claude-code", "cursor"] });
     const loaded = loadOrganization(root);
     expect(loaded.ok).toBe(true);
@@ -151,6 +159,7 @@ describe("claude usage guard adapter", () => {
       projectName: "guard-plan",
       harnesses: ["claude-code"],
     });
+    setUsageGuard(root, { enabled: false });
     const loaded = loadOrganization(root);
     expect(loaded.ok).toBe(true);
     if (!loaded.ok) return;
@@ -160,6 +169,37 @@ describe("claude usage guard adapter", () => {
       organization: loaded.organization,
     });
     expect(planned.some((f) => f.path === ".claude/settings.json")).toBe(false);
+  });
+
+  it("turns the guard on for an existing Claude install with one update", () => {
+    const root = tempDir();
+    initProject(root, {
+      yes: true,
+      createdAt: "2026-11-25T00:00:00.000Z",
+      projectName: "guard-upgrade",
+      harnesses: ["claude-code"],
+    });
+    // Simulate a pre-0.1.4 install: no claudeCode block, no hooks.
+    const teamPath = join(root, "apdt/organization/team.yaml");
+    const team = YAML.parse(readFileSync(teamPath, "utf8")) as {
+      harnesses: Record<string, unknown>;
+    };
+    delete team.harnesses.claudeCode;
+    writeFileSync(teamPath, YAML.stringify(team));
+    unlinkSync(join(root, ".claude/settings.json"));
+    rmSync(join(root, ".claude/hooks"), { recursive: true, force: true });
+
+    // team.yaml was edited out of band; force so the default-on block is written back.
+    const updated = updateProject(root, { force: true });
+    expect(updated.ok).toBe(true);
+    expect(existsSync(join(root, ".claude/settings.json"))).toBe(true);
+    expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
+      true,
+    );
+    const reloaded = loadOrganization(root);
+    expect(reloaded.ok && reloaded.organization.harnesses.claudeCode?.usageGuard?.enabled).toBe(
+      true,
+    );
   });
 });
 

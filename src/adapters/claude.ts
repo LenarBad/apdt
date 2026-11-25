@@ -77,9 +77,9 @@ Differentiate verified facts from assumptions. Keep changes scoped to acceptance
 function settingsPolicyLine(org: OrganizationConfig): string {
   if (isClaudeUsageGuardEnabled(org)) {
     const pct = claudeUsageGuardPauseAt(org);
-    return `Optional usage guard is **on** (pause at ${pct}%). APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008).`;
+    return `Usage guard is **on** (pause at ${pct}%). APDT manages \`.claude/settings.json\` hooks for that feature only (ADR 008). Set \`harnesses.claudeCode.usageGuard.enabled: false\` to disable.`;
   }
-  return `APDT does not write \`.claude/settings.json\` unless \`harnesses.claudeCode.usageGuard.enabled\` is true (ADR 008).`;
+  return `Usage guard is **off**. APDT does not write \`.claude/settings.json\` (ADR 008).`;
 }
 
 function claudeMd(org: OrganizationConfig): string {
@@ -155,7 +155,7 @@ export const claudeCodeAdapter: HarnessAdapter = {
       {
         capability: "approvals",
         support: "partial",
-        notes: "APDT writes .claude/settings.json only when usageGuard is enabled (hooks + autoContinueAtUsageLimit)",
+        notes: "APDT writes .claude/settings.json by default for usage-guard hooks + autoContinueAtUsageLimit; disable with usageGuard.enabled: false",
       },
       {
         capability: "worktree-isolation",

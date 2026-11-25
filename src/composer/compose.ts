@@ -284,6 +284,16 @@ export function composeTeam(
     harnesses: {
       primary: harnesses[0]!,
       enabled: harnesses,
+      ...(harnesses.includes("claude-code")
+        ? {
+            claudeCode: {
+              usageGuard: {
+                enabled: true,
+                pauseAtPercent: 90,
+              },
+            },
+          }
+        : {}),
     },
     preset,
   };

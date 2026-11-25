@@ -136,7 +136,10 @@ describe("init vertical slice", () => {
     expect(existsSync(join(root, ".claude/agents/evaluator.md"))).toBe(true);
     expect(existsSync(join(root, ".claude/skills/session-start/SKILL.md"))).toBe(true);
     expect(existsSync(join(root, ".cursor/agents/evaluator.md"))).toBe(true);
-    expect(existsSync(join(root, ".claude/settings.json"))).toBe(false);
+    expect(existsSync(join(root, ".claude/settings.json"))).toBe(true);
+    expect(existsSync(join(root, ".claude/hooks/apdt-usage-guard/guard.mjs"))).toBe(
+      true,
+    );
 
     const claudeAgent = readFileSync(join(root, ".claude/agents/evaluator.md"), "utf8");
     expect(claudeAgent).toContain("permissionMode: plan");
