@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 — 2026-11-26
+
+The Claude Code usage guard pauses the current turn from Claude's own usage reading, and `session-start` warns when the working tree is not git. Template schema stays `0.2.0`.
+
+- A project status line records `rate_limits`. At or above 90%, the hook stops the turn before the next user message and before every tool call of the main agent and any subagent. A text-only reply is not checked.
+- On macOS the fallback reads the login keychain item `Claude Code-credentials`. The `0.1.4` hook only read `~/.claude/.credentials.json`, which is absent there, so it failed open.
+- `session-start` warns that review and rollback need git, then continues. Review still prefers a git diff.
+- Existing Claude Code installs pick this up on the next `apdt update` after upgrading the CLI.
+
 ## 0.1.4 — 2026-11-25
 
 Claude Code usage guard is **on by default** when Claude Code is enabled. Template schema stays `0.2.0`.
