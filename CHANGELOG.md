@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.6 — 2026-11-27
+
+`apdt uninstall` removes an install from a project. Template schema stays `0.2.0`.
+
+- Deletes files recorded in `apdt/.apdt-manifest.yaml`, later notes under `apdt/`, and the manifest. Copies them to `.apdt-backup/<timestamp>/` first.
+- Leaves files the install adopted with `pinContent`, and leaves anything the manifest does not list: other rules, other skills, a pre-existing `AGENTS.md`.
+- When `.claude/settings.json` has other settings, removes only the `apdt-usage-guard` hooks. A settings file that contains only the guard is deleted.
+- Refuses to run without a terminal confirmation or `--yes`. `--dry-run` prints the plan and changes nothing.
+
 ## 0.1.5 — 2026-11-26
 
 The Claude Code usage guard pauses the current turn from Claude's own usage reading, and `session-start` warns when the working tree is not git. Template schema stays `0.2.0`.

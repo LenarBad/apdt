@@ -35,6 +35,7 @@ Interactive `init` (no `--yes`) prompts for harnesses, preset, and autonomy when
 apdt analyze [path] [--json]
 apdt init [path] [--yes] [--force] [--recompose] [--harness cursor,claude-code,codex] [--preset minimal|standard|full-stack-split] [--autonomy supervised]
 apdt update [path] [--force] [--recompose] [--harness ...] [--preset ...] [--autonomy ...]
+apdt uninstall [path] [--yes] [--dry-run]
 apdt export [path] [--out dir]
 apdt doctor [path] [--strict]
 apdt status [path]
@@ -57,6 +58,23 @@ apdt update .
 `apdt update` keeps the installed team. It rewrites a managed file only when the new template differs and the file still matches the last install. Files you edited, `pinContent` files, and anything outside the manifest stay as they are. `--force` overwrites edited managed files after a backup.
 
 Team and ownership changes ship in the composer, not in the template text. Those land only with `apdt update --recompose`, which rebuilds the team from the installed preset. Edited and pinned files are still left alone.
+
+## Uninstall from a project
+
+```bash
+apdt uninstall . --dry-run
+apdt uninstall . --yes
+```
+
+This removes the files APDT installed, notes written later under `apdt/`, and the manifest. It copies them to `.apdt-backup/<timestamp>/` first. Files adopted with `pinContent` stay, because those bytes were already in the project. Other rules, other skills, a pre-existing `AGENTS.md`, and `.codex/config.toml` stay. If `.claude/settings.json` has settings besides the usage guard, only the `apdt-usage-guard` hooks are removed.
+
+Without a terminal, pass `--yes`. `--dry-run` prints the plan and writes nothing.
+
+Remove the command from the machine separately:
+
+```bash
+npm uninstall -g @lenarbad/apdt
+```
 
 ## What `init` installs
 

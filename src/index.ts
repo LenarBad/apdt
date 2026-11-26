@@ -3,6 +3,7 @@ export { composeTeam } from "./composer/compose.js";
 export { buildWorkspacePlan } from "./init/build-plan.js";
 export { initProject } from "./init/init.js";
 export { updateProject } from "./update/update.js";
+export { uninstallProject } from "./uninstall/uninstall.js";
 export { exportOrganization, isPrivateProjectPath } from "./export/export.js";
 export { doctor, formatFindings } from "./doctor/doctor.js";
 export {

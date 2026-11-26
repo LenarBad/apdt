@@ -12,6 +12,7 @@ import { collectInitAnswers } from "./init/prompts.js";
 import { formatPlanPreview } from "./init/preview.js";
 import { decideFileActions } from "./inventory/manifest.js";
 import { updateProject } from "./update/update.js";
+import { uninstallProject } from "./uninstall/uninstall.js";
 import { statusReport, teamReport } from "./continuity/report.js";
 import { APDT_VERSION } from "./version.js";
 import type { AutonomyLevel } from "./schemas/organization.js";
@@ -208,6 +209,58 @@ const updateCmd = defineCommand({
   },
 });
 
+const uninstallCmd = defineCommand({
+  meta: {
+    name: "uninstall",
+    description: "Remove an APDT install from a project",
+  },
+  args: {
+    path: { type: "positional", required: false, description: "Repository path" },
+    yes: {
+      type: "boolean",
+      description: "Remove files without a confirmation prompt",
+      default: false,
+      alias: "y",
+    },
+    "dry-run": {
+      type: "boolean",
+      description: "Show what would be removed and change nothing",
+      default: false,
+    },
+  },
+  async run({ args }) {
+    const root = resolve(String(args.path ?? "."));
+    const dryRun = Boolean(args["dry-run"]);
+    if (!dryRun && !args.yes) {
+      if (!input.isTTY || !output.isTTY) {
+        console.error("Uninstall needs a terminal or --yes. Nothing removed.");
+        process.exitCode = 2;
+        return;
+      }
+      const preview = uninstallProject(root, { dryRun: true });
+      console.log(preview.report);
+      if (preview.exitCode !== 0) {
+        process.exitCode = preview.exitCode;
+        return;
+      }
+      const rl = createInterface({ input, output });
+      try {
+        const answer = (await rl.question("Remove these files? [y/N] ")).trim();
+        if (!/^y(es)?$/i.test(answer)) {
+          console.error("Uninstall aborted. No files removed.");
+          process.exitCode = 2;
+          return;
+        }
+      } finally {
+        rl.close();
+      }
+    }
+    const result = uninstallProject(root, { yes: true, dryRun });
+    console.log(result.report);
+    process.exitCode = result.exitCode;
+  },
+});
+
 const exportCmd = defineCommand({
   meta: {
     name: "export",
@@ -280,6 +333,7 @@ const main = defineCommand({
     analyze: analyzeCmd,
     init: initCmd,
     update: updateCmd,
+    uninstall: uninstallCmd,
     export: exportCmd,
     doctor: doctorCmd,
     status: statusCmd,
