@@ -14,6 +14,7 @@ workflows:
     inputs: [apdt/organization, apdt/product/overview.md, apdt/execution/current-status.md, latest handoff]
     outputs: [confirmed next action, optional status update]
     steps:
+      - "Check whether the working tree is a git repository. If it is not, warn that review and rollback need git, and that review will use changed paths instead of a diff. Continue either way."
       - Read apdt/execution/continuity.md
       - Read AGENTS.md / organization instructions
       - Read product overview and current status

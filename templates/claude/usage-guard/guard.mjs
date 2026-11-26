@@ -4,19 +4,21 @@
  * Commands: gate | prompt | resume
  *
  * Reads Pro/Max plan usage via Anthropic OAuth usage endpoint.
- * At pauseAtPercent (config): blocks Agent/Task/Workflow and pauses prompts.
+ * At pauseAtPercent (config): denies the next tool call and stops the turn.
  * On Stop / rate_limit StopFailure: waits for reset then asyncRewake (exit 2).
  * Fail-open when usage cannot be read.
  */
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { homedir, tmpdir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const NEAR_THRESHOLD_TTL_MS = 60 * 1000;
 const MAX_RESUME_WAIT_MS = 24 * 60 * 60 * 1000;
 const RESUME_BUFFER_MS = 4 * 60 * 1000;
 
@@ -66,6 +68,22 @@ function windowFrom(raw) {
         ? new Date(raw.resets_at * 1000).toISOString()
         : null;
   return { utilization, resetsAt };
+}
+
+function snapshotFromRateLimits(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const limits =
+    raw.rate_limits && typeof raw.rate_limits === "object" ? raw.rate_limits : null;
+  if (!limits) return null;
+  const five = windowFrom(limits.five_hour);
+  const seven = windowFrom(limits.seven_day);
+  if (!five && !seven) return null;
+  return {
+    fiveHour: five,
+    sevenDay: seven,
+    fetchedAt: new Date().toISOString(),
+    source: "statusline",
+  };
 }
 
 function parseOAuthUsagePayload(body, now = new Date()) {
@@ -153,20 +171,75 @@ function resumeWaitMs(resetsAt, nowMs = Date.now()) {
   return { waitMs };
 }
 
-function readAccessToken() {
-  const credPath = join(homedir(), ".claude", ".credentials.json");
+function tokenFromCredentials(raw) {
+  const token =
+    raw?.claudeAiOauth?.accessToken ||
+    raw?.claudeAiOauth?.access_token ||
+    raw?.accessToken ||
+    null;
+  return typeof token === "string" && token.length > 0 ? token : null;
+}
+
+function configDir() {
+  return process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
+}
+
+function keychainService(dir) {
+  const homeDefault = join(homedir(), ".claude");
+  if (!dir || dir === homeDefault) return "Claude Code-credentials";
+  const suffix = createHash("sha256").update(dir).digest("hex").slice(0, 8);
+  return `Claude Code-credentials-${suffix}`;
+}
+
+function readCredentialsFile() {
+  const credPath = join(configDir(), ".credentials.json");
   if (!existsSync(credPath)) return null;
   try {
-    const raw = JSON.parse(readFileSync(credPath, "utf8"));
-    const token =
-      raw?.claudeAiOauth?.accessToken ||
-      raw?.claudeAiOauth?.access_token ||
-      raw?.accessToken ||
-      null;
-    return typeof token === "string" && token.length > 0 ? token : null;
+    return tokenFromCredentials(JSON.parse(readFileSync(credPath, "utf8")));
   } catch {
     return null;
   }
+}
+
+function readKeychainToken() {
+  if (process.platform !== "darwin") return null;
+  const services = [keychainService(process.env.CLAUDE_CONFIG_DIR)];
+  if (services[0] !== "Claude Code-credentials") {
+    services.push("Claude Code-credentials");
+  }
+  let account = "";
+  try {
+    account = userInfo().username;
+  } catch {
+    account = "";
+  }
+  const attempts = [];
+  for (const service of services) {
+    if (account) {
+      attempts.push(["find-generic-password", "-s", service, "-a", account, "-w"]);
+    }
+    attempts.push(["find-generic-password", "-s", service, "-w"]);
+  }
+  for (const args of attempts) {
+    try {
+      const out = execFileSync("/usr/bin/security", args, {
+        encoding: "utf8",
+        timeout: 3000,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+      const token = tokenFromCredentials(JSON.parse(out));
+      if (token) return token;
+    } catch {
+      // try the next lookup; never print keychain output
+    }
+  }
+  return null;
+}
+
+function readAccessToken() {
+  const fromEnv = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  if (typeof fromEnv === "string" && fromEnv.length > 0) return fromEnv;
+  return readKeychainToken() || readCredentialsFile();
 }
 
 function readCache() {
@@ -175,11 +248,19 @@ function readCache() {
   try {
     const cached = JSON.parse(readFileSync(path, "utf8"));
     const age = Date.now() - Date.parse(cached.fetchedAt || 0);
-    if (Number.isNaN(age) || age > CACHE_TTL_MS) return null;
-    return { ...cached, source: "cache" };
+    if (Number.isNaN(age)) return null;
+    return { ...cached, source: "cache", ageMs: age };
   } catch {
     return null;
   }
+}
+
+function cacheIsFresh(cached, pauseAtPercent) {
+  if (!cached || cached.ageMs > CACHE_TTL_MS) return false;
+  const decision = decidePause(cached, pauseAtPercent);
+  const near = decision.peakPercent >= Math.max(0, pauseAtPercent - 10);
+  if (near && cached.ageMs > NEAR_THRESHOLD_TTL_MS) return false;
+  return true;
 }
 
 function writeCache(snapshot) {
@@ -190,7 +271,23 @@ function writeCache(snapshot) {
   }
 }
 
-async function fetchUsage() {
+function unavailable(warning) {
+  return {
+    fiveHour: null,
+    sevenDay: null,
+    fetchedAt: new Date().toISOString(),
+    source: "unavailable",
+    warning,
+  };
+}
+
+async function fetchUsage(pauseAtPercent, input) {
+  const fromStatus = snapshotFromRateLimits(input);
+  if (fromStatus) {
+    writeCache(fromStatus);
+    return fromStatus;
+  }
+
   const fixture = process.env.APDT_USAGE_GUARD_FIXTURE;
   if (fixture && existsSync(fixture)) {
     const body = JSON.parse(readFileSync(fixture, "utf8"));
@@ -200,17 +297,14 @@ async function fetchUsage() {
   }
 
   const cached = readCache();
-  if (cached) return cached;
+  if (cacheIsFresh(cached, pauseAtPercent)) return cached;
 
   const token = readAccessToken();
   if (!token) {
-    return {
-      fiveHour: null,
-      sevenDay: null,
-      fetchedAt: new Date().toISOString(),
-      source: "unavailable",
-      warning: "no Claude OAuth token; fail open",
-    };
+    if (cached && decidePause(cached, pauseAtPercent).pause) return cached;
+    return unavailable(
+      "no Claude OAuth token (keychain or credentials file); fail open",
+    );
   }
 
   try {
@@ -219,38 +313,26 @@ async function fetchUsage() {
         Authorization: `Bearer ${token}`,
         "anthropic-beta": "oauth-2025-04-20",
         Accept: "application/json",
+        "User-Agent": "claude-code/2.1.0",
       },
     });
-    if (res.status === 429) {
-      return {
-        fiveHour: null,
-        sevenDay: null,
-        fetchedAt: new Date().toISOString(),
-        source: "unavailable",
-        warning: "usage API rate-limited; fail open",
-      };
-    }
     if (!res.ok) {
-      return {
-        fiveHour: null,
-        sevenDay: null,
-        fetchedAt: new Date().toISOString(),
-        source: "unavailable",
-        warning: `usage API HTTP ${res.status}; fail open`,
-      };
+      if (cached && decidePause(cached, pauseAtPercent).pause) return cached;
+      const warning =
+        res.status === 429
+          ? "usage API rate-limited; fail open"
+          : `usage API HTTP ${res.status}; fail open`;
+      return unavailable(warning);
     }
     const body = await res.json();
     const snap = parseOAuthUsagePayload(body);
     writeCache(snap);
     return snap;
   } catch (e) {
-    return {
-      fiveHour: null,
-      sevenDay: null,
-      fetchedAt: new Date().toISOString(),
-      source: "unavailable",
-      warning: `usage fetch failed: ${e instanceof Error ? e.message : String(e)}`,
-    };
+    if (cached && decidePause(cached, pauseAtPercent).pause) return cached;
+    return unavailable(
+      `usage fetch failed: ${e instanceof Error ? e.message : String(e)}`,
+    );
   }
 }
 
@@ -262,8 +344,18 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function cmdGate(pauseAtPercent) {
-  const snapshot = await fetchUsage();
+async function cmdRecord(input) {
+  const snap = snapshotFromRateLimits(input);
+  if (!snap) process.exit(0);
+  writeCache(snap);
+  const config = loadConfig();
+  const pauseAtPercent = Number(config.pauseAtPercent) || 90;
+  process.stdout.write(`${usageContextLine(snap, decidePause(snap, pauseAtPercent))}\n`);
+  process.exit(0);
+}
+
+async function cmdGate(pauseAtPercent, input) {
+  const snapshot = await fetchUsage(pauseAtPercent, input);
   const decision = decidePause(snapshot, pauseAtPercent);
   if (!decision.pause) {
     if (snapshot.source === "unavailable" && snapshot.warning) {
@@ -271,20 +363,24 @@ async function cmdGate(pauseAtPercent) {
     }
     process.exit(0);
   }
+  const reason = `APDT usage guard paused work: ${decision.reason}.${
+    decision.resetsAt ? ` Resets at ${decision.resetsAt}.` : ""
+  } Wait for the limit to reset, then continue.`;
+  process.stderr.write(`${reason}\n`);
   printJson({
+    continue: false,
+    stopReason: reason,
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: `APDT usage guard paused spawning: ${decision.reason}.${
-        decision.resetsAt ? ` Resets at ${decision.resetsAt}.` : ""
-      } Wait for the limit to reset, then continue.`,
+      permissionDecisionReason: reason,
     },
   });
   process.exit(0);
 }
 
-async function cmdPrompt(pauseAtPercent) {
-  const snapshot = await fetchUsage();
+async function cmdPrompt(pauseAtPercent, input) {
+  const snapshot = await fetchUsage(pauseAtPercent, input);
   const decision = decidePause(snapshot, pauseAtPercent);
   if (decision.pause) {
     const msg = `APDT usage guard paused work: ${decision.reason}.${
@@ -305,8 +401,8 @@ async function cmdPrompt(pauseAtPercent) {
   process.exit(0);
 }
 
-async function cmdResume(pauseAtPercent) {
-  const snapshot = await fetchUsage();
+async function cmdResume(pauseAtPercent, input) {
+  const snapshot = await fetchUsage(pauseAtPercent, input);
   const decision = decidePause(snapshot, pauseAtPercent);
 
   // Still under threshold: nothing to wait for
@@ -337,12 +433,20 @@ async function main() {
   const cmd = process.argv[2] || "gate";
   const config = loadConfig();
   const pauseAtPercent = Number(config.pauseAtPercent) || 90;
-  // Consume stdin so Claude Code does not hang; payload unused for decisions.
-  await readStdin();
+  const raw = await readStdin();
+  let input = null;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      input = JSON.parse(raw);
+    } catch {
+      input = null;
+    }
+  }
 
-  if (cmd === "gate") return cmdGate(pauseAtPercent);
-  if (cmd === "prompt") return cmdPrompt(pauseAtPercent);
-  if (cmd === "resume") return cmdResume(pauseAtPercent);
+  if (cmd === "record") return cmdRecord(input);
+  if (cmd === "gate") return cmdGate(pauseAtPercent, input);
+  if (cmd === "prompt") return cmdPrompt(pauseAtPercent, input);
+  if (cmd === "resume") return cmdResume(pauseAtPercent, input);
   process.stderr.write(`Unknown command: ${cmd}\n`);
   process.exit(1);
 }

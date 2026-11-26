@@ -69,7 +69,7 @@ Team and ownership changes ship in the composer, not in the template text. Those
 - Inventory at `apdt/.apdt-manifest.yaml`
 - Onboarding at `apdt/ONBOARDING.md`
 
-APDT does not write `.codex/config.toml`. When Claude Code is enabled, APDT turns on a usage guard by default and writes managed `.claude/settings.json` hooks that pause work and block subagent spawning around 90% plan usage, then resume after reset (subscription sessions only; ADR 008). Set `harnesses.claudeCode.usageGuard.enabled: false` to disable.
+APDT does not write `.codex/config.toml`. When Claude Code is enabled, APDT turns on a usage guard by default and writes managed `.claude/settings.json` hooks that stop the current turn around 90% plan usage, then resume after reset (subscription sessions only; ADR 008). On macOS the hook reads the Claude Code login from the Keychain. Set `harnesses.claudeCode.usageGuard.enabled: false` to disable.
 
 ## Development
 

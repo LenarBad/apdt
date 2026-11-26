@@ -102,7 +102,10 @@ describe("claude usage guard adapter", () => {
       readFileSync(join(root, ".claude/settings.json"), "utf8"),
     );
     expect(settings.autoContinueAtUsageLimit).toBe(true);
-    expect(JSON.stringify(settings.hooks)).toContain("Agent|Task|Workflow");
+    expect(settings.hooks.PreToolUse[0].matcher).toBeUndefined();
+    expect(settings.hooks.PreToolUse[0].hooks[0].command).toContain(" gate");
+    expect(settings.statusLine.command).toContain(" record");
+    expect(settings.statusLine.refreshInterval).toBe(30);
   });
 
   it("skips unmanaged settings.json and doctor warns", () => {
@@ -238,6 +241,7 @@ describe("claude usage guard script", () => {
     });
     expect(result.status).toBe(0);
     const out = JSON.parse(result.stdout || "{}");
+    expect(out.continue).toBe(false);
     expect(out.hookSpecificOutput.permissionDecision).toBe("deny");
   });
 
@@ -311,5 +315,45 @@ describe("claude usage guard script", () => {
     );
     expect(result.status).toBe(2);
     expect(JSON.parse(result.stdout).continue).toBe(false);
+  });
+
+  it("records status-line usage and the next gate pauses", () => {
+    const root = tempDir();
+    const configDir = join(root, "hook");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      join(configDir, "config.json"),
+      JSON.stringify({ pauseAtPercent: 90 }),
+    );
+    const guardPath = join(configDir, "guard.mjs");
+    writeFileSync(
+      guardPath,
+      readFileSync(join(templatesRoot(), "claude/usage-guard/guard.mjs"), "utf8"),
+    );
+    const env = {
+      ...process.env,
+      CLAUDE_PROJECT_DIR: root,
+    };
+    delete env.APDT_USAGE_GUARD_FIXTURE;
+    const recorded = spawnSync(process.execPath, [guardPath, "record"], {
+      input: JSON.stringify({
+        rate_limits: {
+          five_hour: { used_percentage: 91, resets_at: 1732536000 },
+          seven_day: { used_percentage: 76, resets_at: 1733000000 },
+        },
+      }),
+      encoding: "utf8",
+      env,
+    });
+    expect(recorded.status).toBe(0);
+    expect(recorded.stdout).toContain("91%");
+
+    const gate = spawnSync(process.execPath, [guardPath, "gate"], {
+      input: "{}",
+      encoding: "utf8",
+      env,
+    });
+    expect(gate.status).toBe(0);
+    expect(JSON.parse(gate.stdout).continue).toBe(false);
   });
 });

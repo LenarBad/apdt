@@ -24,10 +24,14 @@ export function buildUsageGuardSettings(): Record<string, unknown> {
   });
   return {
     autoContinueAtUsageLimit: true,
+    statusLine: {
+      type: "command",
+      command: usageGuardHookCommand("record"),
+      refreshInterval: 30,
+    },
     hooks: {
       PreToolUse: [
         {
-          matcher: "Agent|Task|Workflow",
           hooks: [cmd("gate")],
         },
       ],
@@ -77,8 +81,8 @@ export function planUsageGuardFiles(org: OrganizationConfig): PlannedFile[] {
   const settings = JSON.stringify(buildUsageGuardSettings(), null, 2);
   const readme = `# APDT Claude usage guard
 
-Opt-in Claude Code hooks that pause work and block Agent/Task/Workflow spawning
-when plan usage reaches ${pauseAtPercent}% (5-hour or weekly window).
+Claude Code hooks that pause the current turn when plan usage reaches ${pauseAtPercent}%
+(5-hour or weekly window). The next tool call is denied and the turn stops.
 
 - Config: \`config.json\` (\`pauseAtPercent\`)
 - Requires a Claude.ai subscription OAuth login (not API-key-only)

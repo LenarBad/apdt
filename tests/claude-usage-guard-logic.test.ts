@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
+  accessTokenFromCredentials,
+  claudeCodeKeychainService,
   decidePause,
   parseOAuthUsagePayload,
+  parseRateLimitsPayload,
   resumeWaitMs,
   usageContextLine,
   gateDenyPayload,
@@ -17,6 +21,20 @@ describe("claude usage guard logic", () => {
     expect(snap.fiveHour?.utilization).toBe(42.5);
     expect(snap.sevenDay?.utilization).toBe(88);
     expect(snap.sevenDay?.resetsAt).toBe(new Date(1732536000 * 1000).toISOString());
+  });
+
+  it("pauses on the status-line rate_limits Claude shows in the UI", () => {
+    const snap = parseRateLimitsPayload({
+      rate_limits: {
+        five_hour: { used_percentage: 91, resets_at: 1732536000 },
+        seven_day: { used_percentage: 76, resets_at: 1733000000 },
+      },
+    });
+    expect(snap?.source).toBe("statusline");
+    expect(snap?.fiveHour?.utilization).toBe(91);
+    expect(snap?.sevenDay?.utilization).toBe(76);
+    expect(decidePause(snap, 90).pause).toBe(true);
+    expect(decidePause(snap, 90).window).toBe("five_hour");
   });
 
   it("fails open when snapshot unavailable", () => {
@@ -60,6 +78,7 @@ describe("claude usage guard logic", () => {
     const decision = decidePause(snap, 90);
     expect(usageContextLine(snap, decision)).toContain("5h 95%");
     const deny = gateDenyPayload(decision);
+    expect(deny.continue).toBe(false);
     expect(
       (deny.hookSpecificOutput as { permissionDecision: string }).permissionDecision,
     ).toBe("deny");
@@ -79,5 +98,18 @@ describe("claude usage guard logic", () => {
     });
     expect(far.waitMs).toBe(0);
     expect(far.skipReason).toMatch(/more than/);
+  });
+
+  it("reads the OAuth blob shape Claude Code stores", () => {
+    expect(
+      accessTokenFromCredentials({
+        claudeAiOauth: { accessToken: "token-a" },
+      }),
+    ).toBe("token-a");
+    expect(accessTokenFromCredentials({ accessToken: "" })).toBeNull();
+    expect(claudeCodeKeychainService()).toBe("Claude Code-credentials");
+    const dir = "/Users/me/.claude-work";
+    const suffix = createHash("sha256").update(dir, "utf8").digest("hex").slice(0, 8);
+    expect(claudeCodeKeychainService(dir)).toBe(`Claude Code-credentials-${suffix}`);
   });
 });

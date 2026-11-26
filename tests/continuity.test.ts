@@ -379,6 +379,15 @@ describe("continuity readback", () => {
       );
       expect(planned?.content).toContain("apdt/execution/continuity.md");
       expect(planned?.content).toContain("apdt/engineering/technical-decisions/");
+      if (name === "session-start") {
+        expect(planned?.content).toContain(
+          "Check whether the working tree is a git repository",
+        );
+        expect(planned?.content).toContain(
+          "warn that review and rollback need git",
+        );
+        expect(planned?.content).toContain("Continue either way");
+      }
       const installed = readFileSync(join(root, planned!.path), "utf8");
       expect(installed).toBe(planned?.content);
       const entry = manifest!.files.find((file) => file.path === planned!.path);

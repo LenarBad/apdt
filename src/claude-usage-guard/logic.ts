@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 /** Pure helpers for Claude Code usage guard (testable; mirrored in templates). */
 
 export type UsageWindow = {
@@ -9,7 +11,7 @@ export type UsageSnapshot = {
   fiveHour: UsageWindow | null;
   sevenDay: UsageWindow | null;
   fetchedAt: string;
-  source: "api" | "cache" | "fixture" | "unavailable";
+  source: "api" | "cache" | "fixture" | "statusline" | "unavailable";
   warning?: string;
 };
 
@@ -23,6 +25,25 @@ export type PauseDecision = {
 
 const MAX_RESUME_WAIT_MS = 24 * 60 * 60 * 1000;
 const RESUME_BUFFER_MS = 4 * 60 * 1000;
+
+/** Claude Code status line stdin: rate_limits.*.used_percentage (0–100). */
+export function parseRateLimitsPayload(body: unknown, now = new Date()): UsageSnapshot | null {
+  if (!body || typeof body !== "object") return null;
+  const obj = body as Record<string, unknown>;
+  const limits =
+    obj.rate_limits && typeof obj.rate_limits === "object"
+      ? (obj.rate_limits as Record<string, unknown>)
+      : obj;
+  const five = windowFrom(limits.five_hour);
+  const seven = windowFrom(limits.seven_day);
+  if (!five && !seven) return null;
+  return {
+    fiveHour: five,
+    sevenDay: seven,
+    fetchedAt: now.toISOString(),
+    source: "statusline",
+  };
+}
 
 export function parseOAuthUsagePayload(body: unknown, now = new Date()): UsageSnapshot {
   const obj = (body ?? {}) as Record<string, unknown>;
@@ -158,15 +179,41 @@ export function resumeWaitMs(
   return { waitMs };
 }
 
+/** macOS login-keychain service Claude Code uses for the OAuth blob. */
+export function claudeCodeKeychainService(configDir?: string): string {
+  if (!configDir) return "Claude Code-credentials";
+  const suffix = createHash("sha256").update(configDir, "utf8").digest("hex").slice(0, 8);
+  return `Claude Code-credentials-${suffix}`;
+}
+
+export function accessTokenFromCredentials(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const obj = raw as Record<string, unknown>;
+  const oauth = obj.claudeAiOauth;
+  if (oauth && typeof oauth === "object") {
+    const token = (oauth as Record<string, unknown>).accessToken;
+    const alt = (oauth as Record<string, unknown>).access_token;
+    if (typeof token === "string" && token.length > 0) return token;
+    if (typeof alt === "string" && alt.length > 0) return alt;
+  }
+  if (typeof obj.accessToken === "string" && obj.accessToken.length > 0) {
+    return obj.accessToken;
+  }
+  return null;
+}
+
 export function gateDenyPayload(decision: PauseDecision): Record<string, unknown> {
   const reset = decision.resetsAt
     ? ` Resets at ${decision.resetsAt}.`
     : "";
+  const reason = `APDT usage guard paused work: ${decision.reason}.${reset} Wait for the limit to reset, then continue.`;
   return {
+    continue: false,
+    stopReason: reason,
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: `APDT usage guard paused spawning: ${decision.reason}.${reset} Wait for the limit to reset, then continue.`,
+      permissionDecisionReason: reason,
     },
   };
 }
